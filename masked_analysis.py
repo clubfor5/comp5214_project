@@ -306,7 +306,7 @@ def lstm(input_data):
     return model
 
 
-# In[3]:
+# In[4]:
 
 
 def altered_rssi_analysis():
@@ -366,7 +366,7 @@ def altered_rssi_analysis():
 
         model = cnn_lstm(input_data)
         #model.compile(optimizer=tf.optimizers.Adam(lr=0.001), loss='mse', metrics=['mse'])
-        model.fit(input_data,train_y,nb_epoch=100,batch_size=128,verbose = 0)
+        model.fit(input_data,train_y,nb_epoch=100,batch_size=128,verbose = 1)
         test_pred_y = model.predict([test_id, test_rssi, test_building_id])
         test_pred_y = test_pred_y * ranges + bias 
         error_analysis(test_y, test_pred_y)
@@ -379,7 +379,7 @@ def altered_rssi_analysis():
         
         model = lstm(input_data)
         #model.compile(optimizer=tf.optimizers.Adam(lr=0.001), loss='mse', metrics=['mse'])
-        model.fit(input_data,train_y,nb_epoch=100,batch_size=128,verbose = 0)
+        model.fit(input_data,train_y,nb_epoch=100,batch_size=128,verbose = 1)
         test_pred_y = model.predict([test_id, test_rssi, test_building_id])
         test_pred_y = test_pred_y * ranges + bias 
         error_analysis(test_y, test_pred_y)
@@ -393,7 +393,7 @@ def altered_rssi_analysis():
         # CNN
         model = cnn(input_data)
         #model.compile(optimizer=tf.optimizers.Adam(lr=0.001), loss='mse', metrics=['mse'])
-        model.fit(input_data,train_y,nb_epoch=100,batch_size=128,verbose = 0)
+        model.fit(input_data,train_y,nb_epoch=100,batch_size=128,verbose = 1)
         test_pred_y = model.predict([test_id, test_rssi, test_building_id])
         test_pred_y = test_pred_y * ranges + bias 
         error_analysis(test_y, test_pred_y)
@@ -407,7 +407,7 @@ def altered_rssi_analysis():
         # MLP
 
         model = mlp(input_data)
-        model.fit(input_data,train_y,nb_epoch=100,batch_size=128,verbose = 0)
+        model.fit(input_data,train_y,nb_epoch=100,batch_size=128,verbose = 1)
         test_pred_y = model.predict([test_id, test_rssi, test_building_id])
         test_pred_y = test_pred_y * ranges + bias 
         error_analysis(test_y, test_pred_y)
@@ -419,7 +419,124 @@ def altered_rssi_analysis():
         #LSTM
 
 
-altered_rssi_analysis()
+#altered_rssi_analysis()
+
+
+# In[8]:
+
+
+def masked_rssi_analysis():
+    from sklearn import neighbors
+    path_train = "trainingData.csv"
+    path_validation = "validationData.csv"
+    train_df = pd.read_csv(path_train,header = 0)
+    train_AP_strengths =train_df.loc[:,'WAP001':'WAP520']
+    building_ids_str = train_df["BUILDINGID"].map(str) #convert all the building ids to strings
+    building_floors_str = train_df["FLOOR"].map(str) #convert all the building floors to strings
+    floor_enc = LabelEncoder()
+    floor_enc.fit(building_floors_str)
+    floor_id = floor_enc.transform(building_floors_str)
+    floor_id = floor_id.reshape(-1,1)
+    building_enc = LabelEncoder()
+    building_enc.fit(building_ids_str)
+    building_id = building_enc.transform(building_ids_str)
+    train_building_id = building_id.reshape(-1,1)
+    train_AP_features = np.array(train_AP_strengths.replace([100],[-150]))
+    train_id = np.argsort(train_AP_features)[:,504:520]
+    train_rssi = np.sort(train_AP_features)[:,504:520]
+    print(train_rssi[10])
+    print(train_id[10])
+    print(train_AP_features[train_id[10]])
+    train_df_LL = train_df.loc[:,'LONGITUDE':'LATITUDE']
+    train_labels = np.asarray(train_df_LL)
+    train_y,ranges,bias =  normalization(train_labels)
+    print(bias,ranges)
+    test_df = pd.read_csv(path_validation,header = 0)
+    print(test_df.head(2))
+    test_AP_strengths =test_df.loc[:,'WAP001':'WAP520']
+    #test_AP_features = np.array(test_AP_strengths.replace([100], [-100]))
+    test_building_ids_str = test_df["BUILDINGID"].map(str) #convert all the building ids to strings
+    test_building_floors_str = test_df["FLOOR"].map(str) #convert all the building floors to strings
+    #print(id_label)
+    test_floor_enc = LabelEncoder()
+    test_floor_enc.fit(building_floors_str)
+    test_floor_id = test_floor_enc.transform(test_building_floors_str)
+    test_floor_id = test_floor_id.reshape(-1,1)
+    print("test floor id",(test_floor_id.shape))
+    test_building_enc = LabelEncoder()
+    test_building_enc.fit(test_building_ids_str)
+    test_building_id = test_building_enc.transform(test_building_ids_str)
+    test_building_id = test_building_id.reshape(-1,1)
+    print("test building id:",(test_building_id.shape))
+    test_AP_features = np.array(test_AP_strengths.replace([100],[-150]))
+    test_id = np.argsort(test_AP_features)[:,504:520]
+    test_rssi = np.sort(test_AP_features)[:,504:520]
+    test_rssi_floor = np.hstack((test_rssi,test_floor_id))
+    print(test_rssi_floor[0], test_rssi_floor.shape)
+    test_df_LL = test_df.loc[:,'LONGITUDE':'LATITUDE']
+    test_y = np.asarray(test_df_LL)
+    for i in range(1,6):
+        arr = np.random.random(size=train_rssi.shape)
+        mask = arr < i*0.1
+        print(mask)
+        train_rssi[mask] = -150 # 把标记为True的值记为0
+        print(train_rssi)
+        input_data = [train_id, train_rssi, train_building_id]
+
+        model = cnn_lstm(input_data)
+        #model.compile(optimizer=tf.optimizers.Adam(lr=0.001), loss='mse', metrics=['mse'])
+        model.fit(input_data,train_y,nb_epoch=100,batch_size=128,verbose = 1)
+        test_pred_y = model.predict([test_id, test_rssi, test_building_id])
+        test_pred_y = test_pred_y * ranges + bias 
+        error_analysis(test_y, test_pred_y)
+        fileName = 'cnn_lstm_layer_altered_' + str(2*i)+ '_db.txt'
+        print("writing to file name: ", fileName)
+        file = open(fileName,'wb')
+        pickle.dump(test_pred_y,file)
+        file.close()
+
+        
+        model = lstm(input_data)
+        #model.compile(optimizer=tf.optimizers.Adam(lr=0.001), loss='mse', metrics=['mse'])
+        model.fit(input_data,train_y,nb_epoch=100,batch_size=128,verbose = 1)
+        test_pred_y = model.predict([test_id, test_rssi, test_building_id])
+        test_pred_y = test_pred_y * ranges + bias 
+        error_analysis(test_y, test_pred_y)
+        fileName = 'lstm_layer_altered_' + str(2*i)+ '_db.txt'
+        print("writing to file name: ", fileName)
+        file = open(fileName,'wb')
+        pickle.dump(test_pred_y,file)
+        file.close()
+
+        
+        # CNN
+        model = cnn(input_data)
+        #model.compile(optimizer=tf.optimizers.Adam(lr=0.001), loss='mse', metrics=['mse'])
+        model.fit(input_data,train_y,nb_epoch=100,batch_size=128,verbose = 1)
+        test_pred_y = model.predict([test_id, test_rssi, test_building_id])
+        test_pred_y = test_pred_y * ranges + bias 
+        error_analysis(test_y, test_pred_y)
+        fileName = 'cnn_layer_altered_' + str(i*2)+ '_db.txt'
+        print("writing to file name: ", fileName)
+        file = open(fileName,'wb')
+        pickle.dump(test_pred_y,file)
+        file.close()
+
+
+        # MLP
+
+        model = mlp(input_data)
+        model.fit(input_data,train_y,nb_epoch=100,batch_size=128,verbose = 1)
+        test_pred_y = model.predict([test_id, test_rssi, test_building_id])
+        test_pred_y = test_pred_y * ranges + bias 
+        error_analysis(test_y, test_pred_y)
+        fileName = 'mlp_layer_altered_' + str(ratio)+ '_db.txt'
+        print("writing to file name: ", fileName)
+        file = open(fileName,'wb')
+        pickle.dump(test_pred_y,file)
+        file.close()
+        #LSTM
+masked_rssi_analysis()
 
 
 # In[ ]:
